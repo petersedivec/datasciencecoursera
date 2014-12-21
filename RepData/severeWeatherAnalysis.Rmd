@@ -1,0 +1,150 @@
+---
+title: "US Severe Weather Health & Economic Impacts"
+author: "Peter Sedivec"
+date: "Saturday, December 20, 2014"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    number_sections: yes
+    toc: yes
+---
+
+# Synopsis
+In this report we look at storms and other severe weather events and their public health impact and economic consequences for communities and municipalities. The raw data used in this analysis was the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. The analysis showed that the most harmful to population health (as measured by fatalities and injuries) on an aggregate level were Tornados. There were roughly 60K tornados recorded the and number of fatalities and injuries was an order of magnitude greater than the next most harmful event type. When looking at what event type was most harmful on average per event the top event types were: Extreme Heat, Wild Fires, Heat Waves and Tsunamis. When looking at the event type with greatest economic consequence Tornados were once again at the top of the list, however when looking at greatest average economic consequence on a "per event" basis it highlighted a flaw in the analysis because 16 of the top 25 events were single events (e.g. named hurricanes). This lead to the conclusion that further analysis is really required to consolidate the Event Types and produce a more complete picture regarding economic consequence.
+
+# Data Processing
+The first step in data processing was to load required packages for analysis 
+
+```{r echo=FALSE}
+require("R.utils")
+library(R.utils)
+require("plyr")
+library(plyr)
+```
+After the required packages were loaded the data was downloaded, unzipped and then loaded into R
+
+```{r}
+setwd("~/GitHub/datasciencecoursera/RepData")
+bzFile <- "./data/StormData.csv.bz2"
+sdFile <- gsub(".bz2","",bzFile)
+
+# If we don't have data, create directory, download and unzip it
+if (!file.exists("data")) {
+    dir.create("data")
+    fileURL<- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+    download.file(fileURL, destfile = bzFile)
+    bunzip2(bzFile, sdFile, remove = FALSE)  # Extract file from bz2
+    }
+
+# read the data in and view overall statistics about it
+sd <- read.csv(sdFile)
+# str(sd) # loop at the data structure
+# summary(sd) # look at a sumamry of the statistics
+```
+After loading the data and doing some preliminary exploration it was determined that a few cleaning steps would improve the analysis. Specifically Event Type we want to characterize.  Event type has duplicates based on case (e.g. Volcanic Ash and VOLCANIC ASH) and plurals (e.g. WILDFIRE and WILDFIRES). There were other similarities that could have been applied to improve the data but these were the most glaring.  I also took advantage of cleaning up the PROPDMGEXP and CROPDMGEXP. The variables harmful and costly were created to summarize the population harm and economic consequence by Event Type
+
+```{r}
+# create an exponent function to calculate the magnitude of the reported crop/property damage (thousands, millions, billions)
+exp <- function (f) if (f == 'K') 1e3 else if (f == 'M') 1e6 else if (f == 'B') 1e9 else 1
+
+# convert all the EventType names to uppercase and strip off plural "s", clean-up PROPDMGEXP and COPDMGEXP so they're all upper-case factors and convert values to $ by creating propDmg and cropDmg functions
+sdCleaned <- mutate(sd, EVTYPE = sub("S$","",toupper(EVTYPE)), PROPDMGEXP = toupper(PROPDMGEXP), CROPDMGEXP = toupper(CROPDMGEXP), propDmg = PROPDMG*exp(PROPDMGEXP), cropDmg = CROPDMG*exp(CROPDMGEXP))
+
+# summarize by EventType and count total Fatalities & Injuries
+harmful <- ddply(sdCleaned, .(EVTYPE), summarize, count = length(EVTYPE), totFat = sum(FATALITIES),
+                 totInj = sum(INJURIES), totHarm = totFat+totInj, .drop=FALSE)
+
+# summarize by EventType and count total property and crop damage
+costly <- ddply(sdCleaned, .(EVTYPE), summarize, count = length(EVTYPE), 
+                totPropDmg = sum(propDmg), totCropDmg = sum(cropDmg))
+```
+
+# Analysis
+## Harmful to Population
+The first step in the analysis was determining what "harmful" meant given the measured variables in the dataset. I decided that loss of life (fatality) was 10x more important than an injury so I computed a harmFac variable where fatalities were weighted 10x injuries and I used that to compute perEvent to actually indicate the harmFac score per # of Event occurences.  I subsetted the data to only contain Event Types where the # of fatalities and/or injuries were greater than 50. The data frames I used contained the following columns:
+1. EVTYPE - type of Event, from original dataset
+2.  count - occurence of a given event
+3.  totFat - total # of fatalities for EVTYPE
+4. totInj - total # of injuries for EVTYPE
+5. totHarm - totFat + totInj
+6. harmFac - harm factor = 10 x (totFat) + totInj (weighted harm index that says a fatality is 10x worse than an injury)
+7. perEvent - average harmFac per Event (harmFac / count)
+
+```{r}
+# subset and look for the most harmful by total injuries/fatalities
+MostHarmful <-subset(harmful, totFat>50 | totInj>50)
+
+# adding a harmful Factor which weights fatalities to be 10x injuries and also 
+# calculates a perEvent harmful Index
+MostHarmful <-mutate(MostHarmful, harmFac = 10*totFat+totInj, perEvent = round(harmFac/count,1))
+
+# look at top 15 by Harmful Factor
+TopHarmful <- head(MostHarmful[order(-MostHarmful$harmFac),],15)
+
+# look at top 15 as viewed by per Event Harmful Factor
+TopPerEvent <- head(MostHarmful[order(-MostHarmful$perEvent),],15)
+```
+
+## Greatest Economic Consequence
+For economic consequence I took the costly dataframe and added two variables: 
+* totDmg - reflects the combined property and crop damage
+* perEvent - reflects the per event property damage
+```{r}
+# add a totDmg variable that represents the combined property and crop damage
+costly <- mutate(costly, totDmg = totPropDmg+totCropDmg, perEvent = totDmg/count)
+
+# create a list of the most expensive event types in aggregate
+TopCostly <- head(costly[order(-costly$totDmg),],25)
+
+# create a dataframe with the top most expensive on a "per Event" basis
+TopCostPerEvent <- head(costly[order(-costly$perEvent),],25)
+```
+
+# Results
+## Most Harmful to Population Health 
+Interpretting and answering the question "which types of events are most harmful with respect to population health?" can be interpretted in two main ways:
+* As an aggregate which event type is most harmful (independent of how many event occurences)
+* On a per Event basis which Event types are the most harmful
+
+Below is a tabular representation of both most harmful in aggregate and most harmful per Event
+
+```{r}
+head(TopHarmful)
+head(TopPerEvent)
+```
+
+We can also look at this graphically, and examine the total harm by events. This graphically shows that Tornados are without question the most harmful in terms of population health with close to 6,000 fatalities and over 90,000 injuries
+```{r}
+par(las=2, mai=c(2.5,1,1,0.25)+0.1)
+barplot(t(data.matrix(subset(TopHarmful, select=c(3,4))))/1000, names.arg = TopHarmful$EVTYPE, legend.text=c("Fatalities","Injuries"),main="Total Harm by Event (thousands)", ylab="# injuries/fatalities (in thousands)")
+```
+
+Looking at a per Event basis we see a different picture which shows that Heat is actually the most dangerous relative to population health
+```{r}
+barplot(t(data.matrix(subset(TopPerEvent, select=c(7)))), names.arg = TopPerEvent$EVTYPE, main="Ave Harm Per Event", ylab="Ave Harm Factor per Event")
+```
+
+## Greatest Economic Consequence
+Looking at the greatest economic consequence table in aggregate shows that Tornados are the most damaging Event Type in aggregate (there were also over 60,000 recorded that factored into the total cost
+```{r}
+TopCostly
+```
+
+When examining the data on a "per Event" basis it's clear that more detailed analysis probably needs to be completed to get the true picture in answering the economic consequence question (either in aggregate or on a per Event basis). The reason for this is because in looking at the table below, of the top 25 most costly on a per Event basis, 16 were single events and upon further inspection of the data we see several hurricane's that are labeled uniquely.  
+```{r}
+TopCostPerEvent
+```
+
+# Further Analysis
+Unfortunately it's not a trivial exercise to continue to clean-up the data and consolidate the EventTypes into a more manageable set.  For example, we can look at unique Event Types and then look at all of those with the name Tornado or Hurricane.  We'll see that we can't just search for the unique name (e.g. Hurricane and/or Tornado) to further clean our dataset because some of those occurances contain other weather event types (e.g. HIGH WINDS, WATERSPOUT)
+```{r}
+eTypes<-unique(sd$EVTYPE)
+eTypes[grep("TORNADO", eTypes)]
+eTypes[grep("HURRICANE", eTypes)]
+```
+
+The last comment I'll make is that upon further inspection of the different event types it was clear that the list could greatly be reduced, as an example, if we look at all the event types containing the word WINTER we notice a lot of similarity.  Further consolidation of event types could impact the analysis and decisions regarding where to allocate funding
+```{r}
+eTypes[grep("WINTER", eTypes)]
+```

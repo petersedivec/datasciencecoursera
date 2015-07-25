@@ -1,0 +1,56 @@
+---
+title: "Regression Modeling Course Project"
+author: "Peter Sedivec"
+date: "June 20, 2015"
+output: pdf_document
+---
+
+# Executive Summary
+The objective of this analysis is to answer the following two questions: (1) Is an automatic or manual transmission better for MPG and (2) can we quantify the MPG difference between the two transmission types. We would like to publish an article in Motor Trend answering these two questions and informing our readers so they can be educated buyers in making their next automobile purchase. 
+
+The mtcars dataset was used to perform this analysis which has 32 observations. The analysis demonstrated that there is no statistically significant difference between automatic and manual transmissions in terms of fuel efficiency (MPGs) and hence the second question regarding quantifying the MPG difference is not able to be answered. 
+
+# Analysis
+Several linear models were fit, however I will only show and describe two since they summarize the trends I observed.  The first LM fits MPG against transmission type (factor variable), weight, and engine displacement. The second model fits MPG against transmission type (factor variable), weight, engine displacement, # of forward gears (factor), and # of carborators (factor).
+```{r}
+fit1 <- lm(mpg ~ factor(am) + wt + disp - 1, data=mtcars)
+summary(fit1)
+fit2 <- lm(mpg ~ factor(am) + wt + disp + factor(gear) + factor(carb) -1, data=mtcars)
+summary(fit2)
+```
+The first model is looking at the important cofounders (weight and engine displacement) and the fit demonstrates that the estimated MPG for an automatic transmission is 34.68 while for a manual transmission it is 34.85 with standard deviations of 3.24 and 2.38 mpgs, respectively.  The difference in the means is less than 0.2 mpgs between the two transmissions.  Relative to the standard deviations there is not enough gap for there to be statistical significance. This is as expected because the cars with automatic transmissions on average had engines with twice as much displacement and were generally 1300lbs heavier. There was very little overlap of cars with both manual and automatic transmissions that had the similar weights and engine sizes.  
+
+# Appendix 
+
+## Data Exploration
+Prior to beginning the analysis the first step was to get familiar with the mtcars dataset.  I started by loading the dataset, looking at the help for it and then doing a summary of the data.  I also decided to look at the dataframe structure with (str) and look at a pairs plot of the variables.  
+```{r}
+data(mtcars)
+?mtcars
+summary(mtcars)
+str(mtcars)
+head(mtcars)
+plot(mtcars)
+```
+Next, I decided to look at the number of automatic/manual transmissions in the dataset and difference in means between the two types of transmissions
+```{r}
+table(mtcars$am)
+tapply(mtcars$mpg, mtcars$am, mean)
+```
+From just looking at the means it seems like manual transmissions are more efficient by a large gap.  In order to investigate further I was curious to see if manual cars potentially were heavier or generally had larger engines
+```{r}
+tapply(mtcars$disp, mtcars$am, mean)
+tapply(mtcars$wt, mtcars$am, mean)
+```
+Here we see that on average the engine displacement of the automatic transmission cars is roughly double and the car weight on average is 1300lbs heavier so it seems plausible that with heavier cars and bigger engines alone the fuel efficiency (mpgs) will be worse.
+
+## Validation
+One important thing is doing a residuals plot to understand if the errors appear to meet the general assumption of a normal distribution. 
+```{r echo=FALSE}
+par(mfrow=c(2,2))
+plot(fit1$residuals)
+plot(fit2$residuals)
+plot(fit1, which=2)
+plot(fit2, which=2)
+```
+From the two plots we can see the residuals. The first fit (based only on transmission, weight and displacement) appears to have several outliers with values of ~6 while the smallest values are under -4.  This is an indication it is not a great fit. The second fit (fit2) has a much more traditional scatter of points. In both cases, the residuals are rather and the r-squared value indicates that the fit isn't a great fit 

@@ -1,0 +1,121 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Peter Sedivec"
+date: "July 25, 2015"
+output: html_document
+---
+
+# Executive Summary
+This report looks at the Weight Lifting Exercises Dataset and attempts to predict the manner in which exercises were done based on sensor measurements affixed to the subjects. The dataset required a bit of cleaning and was reduced from 160 variables down to 54 for which were used to build models.  Four different models were considered in this report: (1) Classification Tree (rpart), (2) Linear Discriminant Analysis (lda), (3) Random Forest (rf), and (4) Gradient Boost Machine (gbm).  Cross-validation was done by holding 40% of the training sample for testing/validation. All four models performed well as was seen by looking at the Confusion Matrixes. Ultimately I selected to use the Random Forest model for the predictions which I submitted because the Out-of-Sample error estimate was <1%. I was able to correctly submit all the answers based on my predictions. The report describes the process I took to generate the results described here.
+
+# Analysis
+## Retrieve / Load Data
+The first set of steps involved retrieving and loading the data to ensure the analysis is reproducible
+
+```{r results=FALSE, warning=FALSE, comment=FALSE, message=FALSE}
+library(caret)
+library(rpart)
+setwd("~/GitHub/datasciencecoursera/PracticalML/Project")
+if (!file.exists("pml-training.csv")) {
+    fileURL<- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+    download.file(fileURL, destfile = "pml-training.csv")
+    fileURL<- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+    download.file(fileURL, destfile = "pml-testing.csv")
+}
+pmltrain <- read.csv("pml-training.csv")
+pmltest <- read.csv("pml-testing.csv")
+```
+## Data Exploration & Cleansing
+The next step was to explore the dataset and clean it appropriately. One part of the cleaning step was to remove variables that had NAs, from the histogram it's clear that there were more than 60 variables with NA values. 
+```{r}
+dim(pmltrain)
+
+# eliminate NAs to clean the data
+NAcount <- colSums(is.na(pmltrain))
+hist(NAcount)
+smtrain <- pmltrain[,!NAcount] # eliminate columns with mostly NAs
+smtest <- pmltest[,!NAcount]
+summary(smtrain$classe)
+#str(smtrain)
+#summary(smtrain)
+```
+
+The next thing I did was inspect the summary of the remaining variables. I noticed that all the factor variables had very little information, they all had 19,216 out of 19,622 values which were blank. Given that 98% of the observations for the factor variables had no information I decided to remove them. I also chose to remove the subject name, X, and the time related variables
+```{r}
+keepVars <- sapply(smtrain, is.numeric)
+keepVars["classe"] <- TRUE # we need to keep the classe
+removeVars <- c("X", "raw_timestamp_part_1", "raw_timestamp_part_2")
+keepVars[removeVars] <- FALSE # determined from inspection we don't need these
+summary(smtrain[,!keepVars])
+smtrain <- smtrain[,keepVars]
+smtest <- smtest[,keepVars]
+dim(smtrain)
+```
+## Partition dataset
+The above modifications reduced my dataset to a total of 54 predictor variables, while this is still a large set I did not bother doing PCA or another pre processing method to reduce the dataset. Running some of the ML algorithms took time on the training set but it was reasonable and so I determined that it wasn't worth the time to clean/pre-process further. The next thing I did was partition the data with a 60-40 split to create a training and testing set for cross-validation
+```{r}
+inTrain <- createDataPartition(y=smtrain$classe, p=.6, list=FALSE)
+trainset <- smtrain[inTrain,]
+testset <- smtrain[-inTrain,]
+dim(trainset)
+```
+## Build ML models
+Once I had my training set I went through and built several models (see below). 
+```{r results='hide', warning=FALSE, comment=FALSE, message=FALSE}
+set.seed(3245)
+rpart_mod <- train(classe ~ ., method="rpart", data=trainset)
+rpart_CM <- confusionMatrix(trainset$classe, predict(rpart_mod, trainset))
+
+set.seed(5724)
+lda_mod <- train(classe ~ ., method="lda", data=trainset)
+lda_CM <-confusionMatrix(testset$classe, predict(lda_mod, testset))
+
+set.seed(8536)
+rf_mod <- train(classe ~ ., method="rf", data=trainset)
+rf_CM <- confusionMatrix(testset$classe, predict(rf_mod, testset))
+
+set.seed(7653)
+gbm_mod <- train(classe ~ ., method="gbm", data=trainset)
+gbm_CM <- confusionMatrix(testset$classe, predict(gbm_mod, testset))
+```
+## Cross validation & Out of Sample Error
+After building the models I looked at the results from the Confusion Matrix for each model as applied to the test set that I reserved to do cross validation. The confusion matrix shows a lot of relevant data, including the Out of Sample Error estimates (Accuracy & Kappa). The results outlined below show how accurate each of the ML algorithms are on this dataset and we expect the Random Forest algorithm to have <1% Out of Sample Error!
+```{r echo=FALSE}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+answers <- predict(rf_mod, smtest)
+pml_write_files(answers)
+```
+
+```{r}
+rpart_CM$overall
+lda_CM$overall
+rf_CM$overall
+gbm_CM$overall
+```
+
+```{r echo=FALSE}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+answers <- predict(rf_mod, smtest)
+pml_write_files(answers)
+```
+
+## Prediction on 20 test cases
+From looking at the results, we see that Random Forest was the most accurate and hence I used that to do the prediction. The results of my predictions for the pml test set are the following
+
+```{r}
+answers
+```
+
+

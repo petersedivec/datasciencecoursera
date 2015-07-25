@@ -1,0 +1,45 @@
+---
+title: 'Stat Inference: Tooth Growth'
+author: "Peter Sedivec"
+date: "Saturday, February 21, 2015"
+output: pdf_document
+---
+Let's take a look and explore the ToothGrowth dataset first.  Reading the help for the dataset we learn that: "The response is the length of odontoblasts (teeth) in each of 10 guinea pigs at each of three dose levels of Vitamin C (0.5, 1, and 2 mg) with each of two delivery methods (orange juice or ascorbic acid)."  Now let's do a little of our own explanatory analysis
+
+```{r echo=FALSE}
+library(datasets)
+str(ToothGrowth)
+summary(ToothGrowth)
+plot(ToothGrowth)
+#'table of dosages'
+#table(ToothGrowth$dose)
+```
+From looking at the plot, it doesn't seem like there is much correlation between supplement deliveraly method (OJ or vitamin C) and length, however there appears to be a clear pattern of increasing length as dosage increases from 0.5mg to 2mg
+
+Let's take a look at the t-intervals for tooth length based on dosages (0.5, 1, 2 ) and supplement:
+```{r echo=FALSE}
+t.test(len ~ supp, paired = FALSE, var.equal = TRUE, data = ToothGrowth)
+t.test(len ~ supp, paired = FALSE, var.equal = TRUE, data = ToothGrowth, conf.level = .90)
+tg1 <- subset(ToothGrowth, dose %in% c(0.5,1))
+t.test(len ~ dose, paired = FALSE, var.equal = TRUE, data = tg1)
+tg2 <- subset(ToothGrowth, dose %in% c(0.5,2))
+t.test(len ~ dose, paired = FALSE, var.equal = TRUE, data = tg2)
+tg3 <- subset(ToothGrowth, dose %in% c(1,2))
+t.test(len ~ dose, paired = FALSE, var.equal = TRUE, data = tg3)
+```
+After looking at the results from the t-tests the conclusions I would draw based on 95% confidence levels are:
+
+1. There is not enough evidence to support the conclusion that delivery of the supplement through Vitamin C is more effective than through absorbic acid. The basis for this assumption is the confidence interval includes 0 indicating that it is possible for there to be no difference between delivery methods.
+
+2. The evidence strongly supports that increasing the dosage of vitamin C supplement has a significant impact on tooth length growth. This result is based on the fact that all confidence intervals (when comparing 0.5 vs 1, 0.5 vs 2 and 1 vs 2mg of supplements) do not contain zero
+
+3. There is diminishing return for the impact of tooth growth as supplement is increased. This conclusion is based on the fact that when looking at the confidence intervals of 0.5 vs 1 and 1 vs 2 we see that the confidence interval is narrower and closer to zero
+
+
+In using t.test to perform a student t-Test I made the following assumptions:
+
+1. the data is not paired
+
+2. we can assume pooled variance can be used to estimate the variance
+
+Other observations: When looking at the t-test assuming a 90% confidence interval we can in deed claim that the Orange Juice delivery method has a statistically significant effect on tooth growth because the confidence interval does not include 0

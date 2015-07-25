@@ -28,3 +28,5 @@ MostHarmful <-mutate(MostHarmful, harmFac = 10*totFat+totInj, perEvent = round(h
 
 TopHarmful <- head(MostHarmful[order(-MostHarmful$harmFac),],15)
 TopPerEvent <- head(MostHarmful[order(-MostHarmful$perEvent),],15)
+
+
